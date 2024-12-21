@@ -165,7 +165,7 @@ for i = 269:1500
     % Step 7: Create the final binary mask
     finalMask = ismember(labeledMask, finalAreaLabels);
 
-    finalMask = bwmorph(finalMask, 'skel', Inf);
+    finalMask = imerode(finalMask, [1 1; 1 1])
 
     imshowpair(finalMask, mask, 'diff');
 
