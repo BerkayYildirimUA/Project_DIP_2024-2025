@@ -18,7 +18,6 @@
 
  % frames = cat(1, frame0.video_data, frame1.video_data);
 
-
 frame_PointB = imread('frame_PointB.png');
 
 % 
