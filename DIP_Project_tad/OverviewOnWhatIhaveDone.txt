@@ -1,0 +1,27 @@
+Blackboard "To measure" evaluation:
+
+1) Deformations of Each Mechanical Part, Including Joints (Bearings)
+- I believe the code is Okay, and I have no more ideas on more analysis that
+we can do to detect deformation
+---- But the tracking can be improved for better results
+How to improve? (Personal suggestion)
+---- Use Berkay's code that has proper lighting and use better masks as well.
+
+2) Detecting Vibration Frequencies in the System
+- I think the code for drawing the motion and speed graph is Good
+----- But the Fourier Transfrom analysis can be improved.
+----- I tried my best but I'm not good at MATLAB so I mostly depended on chatGPT's code suggestions
+-----
+----- I also don't have better ideas on how we can detect vibration, this is the best I got
+
+3) Validating the Virtual Controller Trajectory Using Camera-Measured Trajectories
+- This one my understanding is we compare our Motion and Speed Graph to thier graphs.
+- So use sameer's code that he used to plot the .CVS file and compare it to our own
+
+4) Detecting Differences Between the Motions of the 7 Recordings
+- Here again my understanding is we have to compare the motion and speed Graphs of 7 videos
+- We already have the script so we just generate 7 graphs and compare them
+- I haven't download the rest 6 videos so maybe sone who already did can run the script on them
+
+I also pushes some graphs... obliviously we will replace those graphs if we improve our script now
+and get better results, but those are graphs are my idea of how we do practical Elaboration
