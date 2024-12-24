@@ -107,6 +107,8 @@ end
 % Release tracker
 release(tracker);
 
+%%
+
 % Generate time vector
 time = (0:numFrames-1) * 0.25;
 

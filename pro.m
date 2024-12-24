@@ -1,6 +1,7 @@
+%% Reading and loading the video data
 clear 
 close all 
-clc   % uncomment when too many variables in workspace
+clc
 
 folderPath = 'C:\Users\samee\Desktop\Semester 5 part 2\Digital image processing\Frames\';
 
@@ -20,7 +21,7 @@ frames = cat(1, frame0.video_data, frame1.video_data, frame2.video_data, ...
      frame6.video_data, frame7.video_data, frame8.video_data, ...
      frame9.video_data);
 
-%%
+%% tracking the video and getting the theta values 
 
 % frame point accessed using png file
 frame_PointB = imread('frame_PointB.png');
@@ -75,7 +76,8 @@ for i = 1:numFrames
         deltaY = pointsB(2) - pointA(2);
 
         % Compute angle theta (in degrees) from the -y axis
-        theta(i) = atan2d(deltaX, -deltaY);
+        % why does this work? 
+        theta(i) = 180 + atan2d(deltaX, -deltaY);
     else
         trackedPointsB(i, :) = [NaN, NaN]; % Handle invalid tracking
         theta(i) = NaN;
@@ -92,9 +94,10 @@ close(waitBar);
 % Release tracker
 release(tracker);
 
-%%
+%% Getting the angular speed and plotting the it and the theta values
+
 % Generate time vector
-timeVid = (0:length(theta)-1) / 380;
+timeVid = (0:length(theta)-1) / 380 * 1000;
 
 % Compute angular speed (degrees per second)
 % Use finite difference method: diff(theta) / diff(time)
@@ -117,16 +120,16 @@ hold off;
 figure;
 subplot(2, 1, 1);
 plot(timeVid, theta, 'LineWidth', 2);
-xlabel('Time (s)');
-ylabel('Angle \theta (degrees)');
+xlabel('t (ms)');
+ylabel(' \theta (°)');
 title('Angle of Rod with Respect to -Y Axis');
 grid on;
 
 % Plot angular speed vs time
 subplot(2, 1, 2);
 plot(timeVid, angularSpeed, 'LineWidth', 2);
-xlabel('Time (s)');
-ylabel('Angular Speed (degrees/ms)');
+xlabel('t (ms)');
+ylabel('Angular Speed (°/ms)');
 title('Angular Speed of Rod');
 grid on;
 
@@ -168,6 +171,10 @@ clear opts
 
 samples = size(Datasetencoder1in, 1); % amount of samples in the csv file
 
+% The section above is MATLAB generated code. The code below is written by
+% me. It extracts the theta and velocity values from the csv file and plots
+% them on a graph
+
 section = samples / 8; % 8 videos
 
 % ms length of our video
@@ -184,7 +191,7 @@ subplot(2, 1, 1);
 plot(time, thetaCsv, '-b');
 title('Position (\theta) vs Time');
 xlabel('t [ms]');
-ylabel('\theta [degrees]');
+ylabel('\theta [°]');
 grid on;
 
 % Plot speed (n) vs time
@@ -192,10 +199,12 @@ subplot(2, 1, 2);
 plot(time, angVeloCsv, '-r');
 title('Speed (n) vs Time');
 xlabel('t [ms]');
-ylabel('n [degrees/ms]');
+ylabel('n [°/ms]');
 grid on;
 
-%%
+%% Resampling the values from the csv file, synchronizing the two signal 
+%% and plotting them on a graph
+
 % Downsample the csv values with the ratio of 380/4000
 thetaCsvResam = resample(thetaCsv, 380, 4000);
 angVeloCsvResam = resample(angVeloCsv, 380, 4000);
@@ -212,29 +221,29 @@ angVeloShifted = [zeros(1, shift), angularSpeed(1:end-shift)']';
 % Plot the original and shifted signals
 figure;
 subplot(3, 1, 1);
-plot(theta);
+plot(timeVid, theta);
 title('Original theta');
-xlabel('Time (s)');
-ylabel('Theta (°)');
+xlabel('t (ms)');
+ylabel('\theta (°)');
 
 subplot(3, 1, 2);
-plot(thetaShifted);
+plot(timeVid, thetaShifted);
 title('Shifted theta');
-xlabel('Time (s)');
-ylabel('Theta (°)');
+xlabel('t (ms)');
+ylabel('\theta (°)');
 
 subplot(3, 1, 3);
-plot(thetaCsvResam);
+plot(timeVid, thetaCsvResam);
 hold on;
-plot(thetaShifted);
+plot(timeVid, thetaShifted);
 title('Aligned Signals');
-xlabel('Time (s)');
-ylabel('Theta (°)');
+xlabel('t (ms)');
+ylabel('\theta (°)');
 legend('Resampled theta', 'Shifted theta');
 grid on;
 
 
-%%
+%% Calculating the rms error between the two signals 
 
 % Calculate position error
 thetaErr = thetaCsvResam - thetaShifted;
@@ -252,9 +261,9 @@ plot(timeVid, thetaShifted, 'b', 'LineWidth', 1.5); % Video data for position (t
 hold on;
 plot(timeVid, thetaCsvResam, 'r--', 'LineWidth', 1.5); % Resampled CSV data for position (theta)
 legend('Video Theta', 'Resampled CSV Theta');
-xlabel('Time (s)');
-ylabel('Theta (°)');
-title('Position (Theta) Comparison');
+xlabel('t (ms)');
+ylabel('\theta (°)');
+title('Position (\theta) Comparison');
 grid on;
 
 % Plot velocity (angular velocity) comparison
@@ -263,25 +272,25 @@ plot(timeVid, angVeloShifted, 'b', 'LineWidth', 1.5); % Video data for angular v
 hold on;
 plot(timeVid, angVeloCsvResam, 'r--', 'LineWidth', 1.5); % Resampled CSV data for angular velocity
 legend('Video Angular Velocity', 'Resampled CSV Angular Velocity');
-xlabel('Time (s)');
-ylabel('Angular Velocity (°/s)');
+xlabel('t (ms)');
+ylabel('Angular Velocity (°/ms)');
 title('Angular Velocity Comparison');
 grid on;
 
 % Plot position error (theta)
 figure;
 plot(timeVid, thetaErr, 'k', 'LineWidth', 1.5); % Position error (theta)
-legend('Theta Error');
-xlabel('Time (s)');
+legend('\theta Error');
+xlabel('t (ms)');
 ylabel('Error (°)');
-title('Position (Theta) Error');
+title('Position (\theta) Error');
 grid on;
 
 % Plot velocity error (angular velocity)
 figure;
 plot(timeVid, angVeloErr, 'k', 'LineWidth', 1.5); % Velocity error (angular velocity)
 legend('Angular Velocity Error');
-xlabel('Time (s)');
+xlabel('t (ms)');
 ylabel('Error (°/s)');
 title('Velocity (Angular Velocity) Error');
 grid on;
