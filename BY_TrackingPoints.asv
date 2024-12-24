@@ -29,7 +29,8 @@ else
     clearvars -except frame0 frame1 frame2 frame3 frame4 frame5 frame6 frame7 frame8 frame9 frames
 end
 
-
+% CHECKERBOX IS SMALLER, PIXLES ARE DRAWN BIGGER, STARS ARE BIGGER -> try!
+% try multi frame again!
 
 %%%%%Code Starts from here
 
@@ -42,7 +43,7 @@ frame_1 = adapthisteq(frame_1, "Distribution", "exponential");
 % lighting normalization lighting
 % get avrage light of the top rows which don't move. We will change the
 % gama of all frames later to mach this reference brightness
-backGround = imread('median_image_filtered.png');
+backGround = imread('updated_background.png');
 topRows = 1:30;
 referenceBrightness = mean(backGround(topRows, :), 'all');
 
@@ -88,11 +89,11 @@ initialize(tracker, points, frame_1);
  outputVideo = VideoWriter(filename, 'MPEG-4');
  outputVideo.FrameRate = 30; % Set desired frame rate
  open(outputVideo);
- frameIndex = 1;
 
 startTime = tic;
 hWaitbar = waitbar(0, 'Starting...', 'Name', 'Progress', 'CreateCancelBtn', 'setappdata(gcbf,''canceling'',1)');
 % Track across frames
+
 
 lastFrameIndex = 1500;
 startFrameIndex = 269;
@@ -112,8 +113,8 @@ for i = (startFrameIndex+1):(lastFrameIndex-1)
     waitbar(progress, hWaitbar, sprintf('Progress: %.2f%%\nTime left: %.1f seconds', progress * 100, remainingTime));
 
     % Extract the next frame
-    thisFrame = squeeze(frames(i, :, :));
-    thisFrame = normalizeFrame(thisFrame, referenceBrightness);
+    thisFrameNotNormal = squeeze(frames(i, :, :));
+    thisFrame = normalizeFrame(thisFrameNotNormal, referenceBrightness);
 
     prevFrame = squeeze(frames(i - 1, :, :));
     prevFrame = normalizeFrame(prevFrame, referenceBrightness);
@@ -121,7 +122,15 @@ for i = (startFrameIndex+1):(lastFrameIndex-1)
     nextFrame = squeeze(frames(i + 1, :, :));
     nextFrame = normalizeFrame(nextFrame, referenceBrightness);
     
-    
+
+    areaOfIntrest = getAreaOfIntrest(backGround, thisFrame);
+    % areaOfIntrest2 = getAreaOfIntrest(backGround, nextFrame);
+    % areaOfIntrest3 = getAreaOfIntrest(backGround, prevFrame);
+
+    %areaOfIntrest = areaOfIntrest1 & areaOfIntrest2 & areaOfIntrest3;
+
+
+
     % Track points
     [newPoints, validity] = tracker(thisFrame);
     validNewPoints = newPoints(validity, :);
@@ -141,6 +150,24 @@ cols = cols(validIndices);
 
 % Set the corresponding locations in the mask to true
 validNewPointsBinaryMask(sub2ind(size(validNewPointsBinaryMask), rows, cols)) = true;
+
+validNewPointsBinaryMask = validNewPointsBinaryMask & areaOfIntrest;
+
+%%
+squareSize = 6;
+[maskHeight, maskWidth] = size(areaOfIntrest); % Size of the existing mask
+
+checkerPattern = checkerboard(squareSize, ceil(maskHeight / (2 * squareSize)), ...
+                              ceil(maskWidth / (2 * squareSize)));
+
+checkerMask = checkerPattern > 0.5;
+
+checkerMask = checkerMask(1:maskHeight, 1:maskWidth);
+
+areaOfIntrestcheckerMask = areaOfIntrest & checkerMask;
+
+validNewPointsBinaryMask = validNewPointsBinaryMask | areaOfIntrestcheckerMask;
+%%
 
     % thisAreaOfIntrest = bwconvhull(validNewPointsBinaryMask);
     % 
@@ -203,10 +230,11 @@ validNewPointsBinaryMask(sub2ind(size(validNewPointsBinaryMask), rows, cols)) = 
     nextTotal = SobelMask | PrewittMask | RobertsMask | CannyMask | ApproxCannyMask;
 
 
-    total = prevTotal | nowTotal | nextTotal;
+    %total = prevTotal | nowTotal | nextTotal;
+    total = nowTotal;
 %% 
     % Define the structural element (disk with radius 15)
-    se = strel('diamond', 7);
+    se = strel('diamond', 14);
 
     % Get the binary mask of the structural element
     seMask = se.Neighborhood; % Structural element as binary mask
@@ -406,11 +434,11 @@ finalMask = bwareaopen(hBriged, 3000, 4);
     %imshow(coloredImage);
 
     % Step 5: Identify areas that have points inside
-    %filledValidPoinst = imfill(validNewPointsBinaryMask, 'holes');
-    thinedValidPonits = bwmorph(validNewPointsBinaryMask, 'thin');
+    filledValidPoinst = imfill(validNewPointsBinaryMask, 'holes');
+    %thinedValidPonits = bwmorph(validNewPointsBinaryMask, 'thin');
     
     %get rid of lines
-    openUpValidPonits = imopen(thinedValidPonits, [1 1; 1 1]);
+    openUpValidPonits = imopen(filledValidPoinst, [1 1; 1 1]);
 
     
 
@@ -463,12 +491,12 @@ finalMask = bwareaopen(hBriged, 3000, 4);
 
     %lastMask = bwareaopen(combinedMask, 3000, 4);
 
-    filledUpCombo = imfill(combinedMask, 'holes');
+    combinedMaskAndAreaOfIntrest = combinedMask & areaOfIntrest;
+
+    filledUpCombo = imfill(combinedMaskAndAreaOfIntrest, 'holes');
 
     openComboMask = imopen(filledUpCombo, [1 1; 1 1]); %get rid of stray lines
-    closedComboMask = imclose(openComboMask, [1 1; 1 1]); %fill up holes
-    
-    lastMask = closedComboMask; %delete anything outside of the are of intrest
+    lastMask = imclose(openComboMask, [1 1; 1 1]); %fill up holes
 
     currentArea = nnz(lastMask); % Count the number of non-zero (true) pixels
 
@@ -483,28 +511,6 @@ finalMask = bwareaopen(hBriged, 3000, 4);
         % Optional: Display progress
         fprintf('Current area: %d, Target area: %d\n', currentArea, totalArea);
     end
-%% 
-
-image1 = backGround;
-image2 = thisFrame;
-
-kernel = fspecial('average', [10, 10]); % Create a 10x10 averaging filter
-
-image1 = imfilter(image1, kernel, 'replicate'); % Apply the filter
-image2 = imfilter(image2, kernel, 'replicate'); % Apply the filter
-
-diffResult = imabsdiff(image1, image2);
-
-% Binarize the grayscale image
-binVersion = imbinarize(diffResult, 0.12);
-
-binVersion = logical(binVersion);
-noDots = bwareaopen(binVersion, 200);
-areaOfIntrest = imdilate(noDots, strel('line', 35, 45));
-
-%% 
-
-    lastMask = lastMask & areaOfIntrest;
 
     %lastMask = bwmorph(lastMask, 'thin', 2);
     
@@ -530,6 +536,8 @@ areaOfIntrest = imdilate(noDots, strel('line', 35, 45));
 
     thisFrameRGB = repmat(uint8(thisFrame), [1, 1, 3]); % Convert to RGB
     thisFrameRGB = insertMarker(thisFrameRGB, finalPoints, 'x', 'Color', 'red', 'Size', 1);
+    %thisFrameRGB = insertMarker(thisFrameRGB, groupPoints(finalPoints, 300), 'x', 'Color', 'blue', 'Size', 5);
+
 
     writeVideo(outputVideo, thisFrameRGB);
 
