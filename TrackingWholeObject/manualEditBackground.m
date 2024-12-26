@@ -1,4 +1,14 @@
-% Load the background image
+% We used ChatGPT to write this code, but the method was thought up by us.
+%
+% The basic idea is to select a set of regions in each frame that we know 
+% are the background.
+% Then, a matrix with the same dimensions as the frame is created, 
+% where the pixel values of the selected regions are copied over, 
+% and all other values are set to -1.
+% 
+% At the end, we calculate the mean of all pixels, excluding the -1 values.
+% This should result in a better mask.
+
 background = imread('median_image_filtered.png');
 
 % Define frames of interest

@@ -106,13 +106,13 @@ for i = (startFrameIndex+1):(lastFrameIndex-1) %we use the previous and next fra
     % we turn these points into a binary mask
     validNewPointsBinaryMask = false(size(thisFrame)); % Initialize a binary mask of the same size as the frame
     
-    rows = round(validNewPoints(:, 2)); % Y-coordinates (row indices)
-    cols = round(validNewPoints(:, 1)); % X-coordinates (column indices)
+    rows = round(validNewPoints(:, 2)); % Y-coordinates 
+    cols = round(validNewPoints(:, 1)); % X-coordinates
 
     % Set the corresponding locations in the mask to true
     validNewPointsBinaryMask(sub2ind(size(validNewPointsBinaryMask), rows, cols)) = true;
     
-    %trim out points outside of the area oi intrest
+    %trim out points outside of the area of intrest
     validNewPointsBinaryMask = validNewPointsBinaryMask & areaOfIntrest; 
 
     %% add checker mask
@@ -165,7 +165,7 @@ for i = (startFrameIndex+1):(lastFrameIndex-1) %we use the previous and next fra
 
     %total = prevTotal | total | nextTotal;
 
-    %% not used anymore -> is very slow, don't have to much time to keep running tests with this
+    %% not used anymore -> is very slow, don't have to much time to keep running tests with this. Is still kinda promesing so kept it in
     % the idea here was, after edge detection or the binary mask of the valid points, we wanna find all pixles that
     % are at the end of a stray line, and make them connect to the closed
     % pixles like themselves. Like connect the dots. This could've helpt redraw
@@ -272,7 +272,7 @@ for i = (startFrameIndex+1):(lastFrameIndex-1) %we use the previous and next fra
     thinedTotalResult = bwmorph(result, 'remove') | bwmorph(areaOfIntrestcheckerMask, 'remove'); %a hallow version of the checker mask is added, also in an attempt to help close open bordereds.
 
     %% trying to create regions
-    % I would ike to have regions in the mask If a tracked point is inside of it
+    % I would ike to have regions in the mask. If a tracked point is inside of it
     % I would like to add all points in the enclosed region to the tracking list.
     
     thick = bwmorph(validNewPointsBinaryMask, 'thicken');
@@ -327,7 +327,7 @@ for i = (startFrameIndex+1):(lastFrameIndex-1) %we use the previous and next fra
     addedStars = bridged;
     
     addedStars(smallStars == 1) = 0;
-    %% final touc ups to the mask
+    %% final touch ups to the mask
 
     %open up the lines, get's rid of stray lines on the other edge.
     openUp = imopen(addedStars, [1 1; 1 1]);
