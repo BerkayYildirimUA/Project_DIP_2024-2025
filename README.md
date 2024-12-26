@@ -1,4 +1,4 @@
-The project was split into two main big parts. A rapport has been written about each.
+The project was divided into two main parts, each documented in a separate report.
 
-- the first part is tracking the whole object. The rapport is a matlab live script that can be found in Project_DIP_2024-2025/TrackingWholeObject/Rapport_TrackingWholeObject.mlx
-- the second rapport is more about analysing data, and validating the movement of the machine. This rapport can be found in: [GIEV ADRESS TO THE LOCATION OF A PDF THATS THE FINAL VERSION]
+- The first part involves tracking the whole object. The report is a MATLAB live script, which can be found at: Project_DIP_2024-2025/TrackingWholeObject/Rapport_TrackingWholeObject.mlx
+- The second report focuses on analyzing data and validating the movement of the machine. It can be found at: [PROVIDE THE ADDRESS TO THE FINAL VERSION OF THE PDF].
