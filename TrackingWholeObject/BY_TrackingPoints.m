@@ -1,118 +1,79 @@
- % clear; close all; clc;   % uncomment when too many variables in workspace
- % 
-if ~exist('frame0', 'var') || ~exist('frame1', 'var') || ...
-   ~exist('frame2', 'var') || ~exist('frame3', 'var') || ...
-   ~exist('frame4', 'var') || ~exist('frame5', 'var') || ...
-   ~exist('frame6', 'var') || ~exist('frame7', 'var') || ...
-   ~exist('frame8', 'var') || ~exist('frame9', 'var')
+clearvars -except Video_6
 
-    clear; close all; clc;
+currentPath = mfilename('fullpath');
 
-    % Load the video frames
-    frame0 = load("Imports\Ballenwerper_sync_380fps_006_chunk_0.mat");
-    frame1 = load("Imports\Ballenwerper_sync_380fps_006_chunk_1.mat");
-    frame2 = load("Imports\Ballenwerper_sync_380fps_006_chunk_2.mat");
-    frame3 = load("Imports\Ballenwerper_sync_380fps_006_chunk_3.mat");
-    frame4 = load("Imports\Ballenwerper_sync_380fps_006_chunk_4.mat");
-    frame5 = load("Imports\Ballenwerper_sync_380fps_006_chunk_5.mat");
-    frame6 = load("Imports\Ballenwerper_sync_380fps_006_chunk_6.mat");
-    frame7 = load("Imports\Ballenwerper_sync_380fps_006_chunk_7.mat");
-    frame8 = load("Imports\Ballenwerper_sync_380fps_006_chunk_8.mat");
-    frame9 = load("Imports\Ballenwerper_sync_380fps_006_chunk_9.mat");
+separatorIndex = find(currentPath == filesep, 1, 'last');
+projectRoot = currentPath(1:separatorIndex-1);
+separatorIndex = find(projectRoot == filesep, 1, 'last');
+projectRoot = projectRoot(1:separatorIndex-1);
 
-    % Concatenate video data
-    frames = cat(1, frame0.video_data, frame1.video_data, frame2.video_data, ...
-        frame3.video_data, frame4.video_data, frame5.video_data, ...
-        frame6.video_data, frame7.video_data, frame8.video_data, ...
-        frame9.video_data);
-else
-    clearvars -except frame0 frame1 frame2 frame3 frame4 frame5 frame6 frame7 frame8 frame9 frames
-end
+load_video_chunks([6], true, projectRoot);
+frames = Video_6;
 
-% CHECKERBOX IS SMALLER, PIXLES ARE DRAWN BIGGER, STARS ARE BIGGER -> try!
-% try multi frame again!
-
-%%%%%Code Starts from here
-
-%start frame
+%% start frame
 frame_1 = squeeze(frames(269, :, :));
 frame_1 = adapthisteq(frame_1, "Distribution", "exponential");
 
-%%% Till now working tracker
 
-% lighting normalization lighting
+%% lighting normalization lighting
 % get avrage light of the top rows which don't move. We will change the
 % gama of all frames later to mach this reference brightness
 backGround = imread('updated_background.png');
 topRows = 1:30;
 referenceBrightness = mean(backGround(topRows, :), 'all');
 
-% mask
-% hand made start, only shape matters)
+%% machine mask
+% hand made, (only shape matters)
 image_gray = imread('cutout.png');
 
-
-
-%image_gray = image;
-%image_gray = adapthisteq(image_gray, "Distribution", "exponential");
-
-
-%Initialize point tracker
-tracker = vision.PointTracker('MaxBidirectionalError', 30, 'NumPyramidLevels', 3, 'BlockSize', [25, 25], 'MaxIterations', 20);
-
-%use all bounds in the mask
+%use all pixles in the mask
 binaryImage = imbinarize(image_gray, 0.1);
 [y, x] = find(binaryImage);
 points = [x, y];
-[totalArea, ~] = size(y);
 
+%save area of mask, sligtly less than actualy size for safty
+[totalArea, ~] = size(y);
 totalArea = totalArea * 0.95;
 
-%group points together for more stability and accuracy
-%points = groupPoints(points, 5);
 
+%% Initialize point tracker
+tracker = vision.PointTracker('MaxBidirectionalError', 30, 'NumPyramidLevels', 3, 'BlockSize', [25, 25], 'MaxIterations', 20);
 initialize(tracker, points, frame_1);
 
 
-%%% code from ChatGPT to calculate position and speed according to the
-%%% graphs in blackboard
+%% make video
+% so we can keep track of progress
+outputDir = 'videos';
+if ~exist(outputDir, 'dir')
+   mkdir(outputDir);
+end
 
-%make video file of points
- framesForVideo = cell(1, 1500 - 269 + 1);
+filename = fullfile(outputDir, [datestr(now, 'yyyymmdd_HHMMSS') '.mp4']);
+outputVideo = VideoWriter(filename, 'MPEG-4');
+outputVideo.FrameRate = 30; % Set desired frame rate
+open(outputVideo);
 
- outputDir = 'videos';
- if ~exist(outputDir, 'dir')
-    mkdir(outputDir);
- end
-
- filename = fullfile(outputDir, [datestr(now, 'yyyymmdd_HHMMSS') '.mp4']);
- outputVideo = VideoWriter(filename, 'MPEG-4');
- outputVideo.FrameRate = 30; % Set desired frame rate
- open(outputVideo);
-
+%make a waitbar so we know how the code is doing.
 startTime = tic;
 hWaitbar = waitbar(0, 'Starting...', 'Name', 'Progress', 'CreateCancelBtn', 'setappdata(gcbf,''canceling'',1)');
-% Track across frames
 
-
+%start and end frames
 lastFrameIndex = 1500;
-startFrameIndex = 269;
-for i = (startFrameIndex+1):(lastFrameIndex-1)
-     %printf('Frame %d: \n', i);
-    
+startFrameIndex = 268;
+for i = (startFrameIndex+1):(lastFrameIndex-1) %we use the previous and next frame as info later, so we start a bit later and stop a bit erlier
+    %% waitbar
     if getappdata(hWaitbar, 'canceling')
         disp('User canceled the operation.');
         break;
     end
-    
-    %waitbar
+
     elapsedTime = toc(startTime);
     progress = (i-startFrameIndex - 1)/(lastFrameIndex-startFrameIndex - 1);
     estimatedTotalTime = elapsedTime / progress;
     remainingTime = estimatedTotalTime - elapsedTime;
     waitbar(progress, hWaitbar, sprintf('Progress: %.2f%%\nTime left: %.1f seconds', progress * 100, remainingTime));
 
-    % Extract the next frame
+    %% Extract the next frame
     thisFrameNotNormal = squeeze(frames(i, :, :));
     thisFrame = normalizeFrame(thisFrameNotNormal, referenceBrightness);
 
@@ -122,88 +83,58 @@ for i = (startFrameIndex+1):(lastFrameIndex-1)
     nextFrame = squeeze(frames(i + 1, :, :));
     nextFrame = normalizeFrame(nextFrame, referenceBrightness);
     
-
+    %% get area of intrest
+    % get area of intrest from frames. These are the only places put are
+    %allowed to be, it's a bit bigger than the actual area. Combing these 3
+    %because frame to frame variation isn't that much, so were they overlap
+    %should deffinatly be the area of intrest
     areaOfIntrest1 = getAreaOfIntrest(backGround, thisFrame);
-     areaOfIntrest2 = getAreaOfIntrest(backGround, nextFrame);
-     areaOfIntrest3 = getAreaOfIntrest(backGround, prevFrame);
+    areaOfIntrest2 = getAreaOfIntrest(backGround, nextFrame);
+    areaOfIntrest3 = getAreaOfIntrest(backGround, prevFrame);
 
     areaOfIntrest = areaOfIntrest1 & areaOfIntrest2 & areaOfIntrest3;
+    
+    % used for testing, sometimes we may wanna disable the above code and
+    % see if this works better.
+    %areaOfIntrest = getAreaOfIntrest(backGround, thisFrame);
 
 
-
-    % Track points
+    %% get Track points
     [newPoints, validity] = tracker(thisFrame);
     validNewPoints = newPoints(validity, :);
 
-    % Assume validNewPoints is an Nx2 array of [x, y] coordinates
-validNewPointsBinaryMask = false(size(thisFrame)); % Initialize a binary mask of the same size as the frame
+    % we turn these points into a binary mask
+    validNewPointsBinaryMask = false(size(thisFrame)); % Initialize a binary mask of the same size as the frame
+    
+    rows = round(validNewPoints(:, 2)); % Y-coordinates (row indices)
+    cols = round(validNewPoints(:, 1)); % X-coordinates (column indices)
 
+    % Set the corresponding locations in the mask to true
+    validNewPointsBinaryMask(sub2ind(size(validNewPointsBinaryMask), rows, cols)) = true;
+    
+    %trim out points outside of the area oi intrest
+    validNewPointsBinaryMask = validNewPointsBinaryMask & areaOfIntrest; 
 
-% Convert [x, y] coordinates to row and column indices
-rows = round(validNewPoints(:, 2)); % Y-coordinates (row indices)
-cols = round(validNewPoints(:, 1)); % X-coordinates (column indices)
+    %% add checker mask
+    % the idea is, sometimes we lose point because of bad edge detection.
+    % So using a checker box to "seed" new point is the idea.
+    squareSize = 6;
+    [maskHeight, maskWidth] = size(areaOfIntrest); % Size of the existing mask
 
-% Ensure indices are within bounds
-validIndices = rows > 0 & rows <= size(validNewPointsBinaryMask, 1) & cols > 0 & cols <= size(validNewPointsBinaryMask, 2);
-rows = rows(validIndices);
-cols = cols(validIndices);
-
-% Set the corresponding locations in the mask to true
-validNewPointsBinaryMask(sub2ind(size(validNewPointsBinaryMask), rows, cols)) = true;
-
-validNewPointsBinaryMask = validNewPointsBinaryMask & areaOfIntrest;
-
-%%
-squareSize = 6;
-[maskHeight, maskWidth] = size(areaOfIntrest); % Size of the existing mask
-
-checkerPattern = checkerboard(squareSize, ceil(maskHeight / (2 * squareSize)), ...
+    checkerPattern = checkerboard(squareSize, ceil(maskHeight / (2 * squareSize)), ...
                               ceil(maskWidth / (2 * squareSize)));
 
-checkerMask = checkerPattern > 0.5;
+    checkerMask = checkerPattern > 0.5;
 
-checkerMask = checkerMask(1:maskHeight, 1:maskWidth);
+    checkerMask = checkerMask(1:maskHeight, 1:maskWidth);
 
-areaOfIntrestcheckerMask = areaOfIntrest & checkerMask;
+    areaOfIntrestcheckerMask = areaOfIntrest & checkerMask;
 
-validNewPointsBinaryMask = validNewPointsBinaryMask | areaOfIntrestcheckerMask;
-%%
+    validNewPointsBinaryMask = validNewPointsBinaryMask | areaOfIntrestcheckerMask;
 
-    % thisAreaOfIntrest = bwconvhull(validNewPointsBinaryMask);
-    % 
-    % if exist('prevAreaOfIntrest', 'var')
-    %     areaOfIntrest = prevAreaOfIntrest & thisAreaOfIntrest;
-    % else
-    %     areaOfIntrest = thisAreaOfIntrest;
-    % end
-
-    % % Step 1: Skeletonize the binary image
-    % skeleton = bwmorph(validNewPointsBinaryMask, 'skel', Inf);
-    % 
-    % % Step 2: Detect endpoints
-    % endpoints = bwmorph(skeleton, 'endpoints');
-    % 
-    % 
-    % % Get coordinates of the endpoints
-    % [end_y, end_x] = find(endpoints);
-    % 
-    % % Step 3: Connect spikes
-    % % Create a copy of the skeleton for modifications
-    % connectedSkeleton = connect_all_points(skeleton, end_x, end_y, 20);
-    % 
-    % CannyMask = edge(validNewPointsBinaryMask, 'Canny');
-    % CannyEndpoints = bwmorph(CannyMask, 'endpoints');
-    % filteredPoints = polylinear_approximation(CannyEndpoints, 10);
-    % 
-    % [end_y, end_x] = find(filteredPoints);
-    % CannyConnected = connect_all_points(CannyEndpoints, end_x, end_y, 20);
-
- 
-
-   % validNewPointsBinaryMask = validNewPointsBinaryMask | connectedSkeleton | CannyConnected;
-
-
-%CannyFrame = edge(thisFrame, 'Canny');
+    %% edge detection
+    %trying to use edge detection to redraw lost points. zerocross and log not
+    %used cause they create to much noise.
 
     SobelMask       = edge(thisFrame, 'Sobel');
     PrewittMask     = edge(thisFrame, 'Prewitt');
@@ -211,29 +142,74 @@ validNewPointsBinaryMask = validNewPointsBinaryMask | areaOfIntrestcheckerMask;
     CannyMask       = edge(thisFrame, 'Canny', [], 4);
     ApproxCannyMask = edge(thisFrame, 'approxcanny');
     % % 
-    nowTotal = SobelMask | PrewittMask | RobertsMask | CannyMask | ApproxCannyMask;
+    total = SobelMask | PrewittMask | RobertsMask | CannyMask | ApproxCannyMask;
 
-    SobelMask       = edge(prevFrame, 'Sobel');
-    PrewittMask     = edge(prevFrame, 'Prewitt');
-    RobertsMask     = edge(prevFrame, 'Roberts');
-    CannyMask       = edge(prevFrame, 'Canny', [], 4);
-    ApproxCannyMask = edge(prevFrame, 'approxcanny');
+    % can chose to add info of the neiboring frames as well. might help
+    % close area's that didn't close because of bad edge detection
+    
+    % SobelMask       = edge(prevFrame, 'Sobel');
+    % PrewittMask     = edge(prevFrame, 'Prewitt');
+    % RobertsMask     = edge(prevFrame, 'Roberts');
+    % CannyMask       = edge(prevFrame, 'Canny', [], 4);
+    % ApproxCannyMask = edge(prevFrame, 'approxcanny');
+    % % % 
+    % prevTotal = SobelMask | PrewittMask | RobertsMask | CannyMask | ApproxCannyMask;
+
+    % SobelMask       = edge(nextFrame, 'Sobel');
+    % PrewittMask     = edge(nextFrame, 'Prewitt');
+    % RobertsMask     = edge(nextFrame, 'Roberts');
+    % CannyMask       = edge(nextFrame, 'Canny', [], 4);
+    % ApproxCannyMask = edge(nextFrame, 'approxcanny');
+    % % % 
+    % nextTotal = SobelMask | PrewittMask | RobertsMask | CannyMask | ApproxCannyMask;
+
+    %total = prevTotal | total | nextTotal;
+
+    %% not used anymore -> is very slow, don't have to much time to keep running tests with this
+    % the idea here was, after edge detection or the binary mask of the valid points, we wanna find all pixles that
+    % are at the end of a stray line, and make them connect to the closed
+    % pixles like themselves. Like connect the dots. This could've helpt redraw
+    % lost pixles, or closed open bounds caused by bad edge detection.
+
+    % % % Step 1: Skeletonize the binary image
+    %  skeleton = bwmorph(validNewPointsBinaryMask, 'skel', Inf);
     % % 
-    prevTotal = SobelMask | PrewittMask | RobertsMask | CannyMask | ApproxCannyMask;
-
-    SobelMask       = edge(nextFrame, 'Sobel');
-    PrewittMask     = edge(nextFrame, 'Prewitt');
-    RobertsMask     = edge(nextFrame, 'Roberts');
-    CannyMask       = edge(nextFrame, 'Canny', [], 4);
-    ApproxCannyMask = edge(nextFrame, 'approxcanny');
+    % % % Step 2: Detect endpoints
+    %  endpoints = bwmorph(skeleton, 'endpoints');
     % % 
-    nextTotal = SobelMask | PrewittMask | RobertsMask | CannyMask | ApproxCannyMask;
+    % % 
+    % % % Get coordinates of the endpoints
+    %  [end_y, end_x] = find(endpoints);
+    % % 
+    % % % Step 3: Connect spikes
+    % % % Create a copy of the skeleton for modifications
+    %  connectedSkeleton = connect_all_points(skeleton, end_x, end_y, 20);
+    % %   
+    % % %%%%
+    % % diffrent way to try the same thing, 
+    % %
+    %  CannyMask = edge(validNewPointsBinaryMask, 'Canny');
+    %  CannyEndpoints = bwmorph(CannyMask, 'endpoints');
+    % % %filteredPoints = polylinear_approximation(CannyEndpoints, 10); % couldn't get polylinear_approximation working right
+    % % 
+    %  [end_y, end_x] = find(CannyEndpoints);
+    %  CannyConnected = connect_all_points(CannyEndpoints, end_x, end_y);
+    % 
+    % 
+    % 
+    % validNewPointsBinaryMask = validNewPointsBinaryMask | connectedSkeleton | CannyConnected;
 
 
-    %total = prevTotal | nowTotal | nextTotal;
-    total = nowTotal;
-%% 
-    % Define the structural element (disk with radius 15)
+
+    
+    %% cleaning up edges
+    % there are lots of times that bad lighting causes edge detection to go
+    % haywire inside of the machine. So, if there are to many pixles in an 
+    % area, I wanna replace them with a hollow diamond shape. This would
+    % make the mask have more of a real border, and less clumpt up points
+    % near the edge.
+    
+    % Define the structural element
     se = strel('diamond', 7);
 
     % Get the binary mask of the structural element
@@ -293,235 +269,141 @@ validNewPointsBinaryMask = validNewPointsBinaryMask | areaOfIntrestcheckerMask;
     result(needToBeOne) = 1;
     result(needToBeZero) = 0;
     
-    thinedTotalResult = bwmorph(result, 'remove');
+    thinedTotalResult = bwmorph(result, 'remove') | bwmorph(areaOfIntrestcheckerMask, 'remove'); %a hallow version of the checker mask is added, also in an attempt to help close open bordereds.
 
-%% 
-thinedTotalResult = thinedTotalResult | bwmorph(areaOfIntrestcheckerMask, 'remove');
+    %% trying to create regions
+    % I would ike to have regions in the mask If a tracked point is inside of it
+    % I would like to add all points in the enclosed region to the tracking list.
+    
+    thick = bwmorph(validNewPointsBinaryMask, 'thicken');
+    brigdeClose = bwmorph(thick, 'close');
+    bridged = bwmorph(brigdeClose, 'bridge');
+    
+    bridged(thinedTotalResult == 1) = 0;
 
-thick = bwmorph(validNewPointsBinaryMask, 'thicken');
-brigdeClose = bwmorph(thick, 'close');
-bridged = bwmorph(brigdeClose, 'bridge');
+    %% STARS
+    %kinda similar idea as line 188
+    %I want to connect regions that didn't connect well because of bad edge
+    %dection. The idea here, we find these end point sof lines again. But this
+    %time, be just put a big star in there. The lines tend to be close to where
+    %they were suppose to end. So we hope they can connect to the other side of the line that the edge detection happened to miss.
+    
+    %this is the shape I mean with "star":
+    % 1     1     1
+    %   1   1   1  
+    %     1 1 1    
+    % 1 1 1 1 1 1 1
+    %     1 1 1    
+    %   1   1   1  
+    % 1     1     1
+    
+    %ends = bwmorph(~bridged, 'endpoints');
+    
+    % find the ends, looking for pixles with exalt 1 neigbor or less
+    neighborhoodKernel = ones(3, 3); 
+    neighborhoodKernel(2, 2) = 0;
+    neighborCount = conv2(~bridged, neighborhoodKernel, 'same');
+    dots = (~bridged == 1) & (neighborCount <= 1);
+    
+    %dots = filter_large_areas(ends, 1); % trying to get rid of area's if
+    %they are to close togater
+    
+    %making the star shape
+    starLength = 9;
+    horizontal =    center_in_matrix(getnhood(strel("line",starLength,0)), starLength);
+    vertical =      center_in_matrix(getnhood(strel("line",starLength,90)), starLength);
+    leftleaning =   center_in_matrix(getnhood(strel("line",starLength * sqrt(2),45)), starLength);
+    rightleaning =  center_in_matrix(getnhood(strel("line",starLength * sqrt(2),-45)), starLength);
+    
+    star = horizontal | vertical | leftleaning | rightleaning;
+    
+    % adding the stars
+    stars = imdilate(dots, star);
+    
+    %getting rid of to large areas
+    smallStars = filter_large_areas(stars, 200);
+    
+    %make a copy for easy debugging
+    addedStars = bridged;
+    
+    addedStars(smallStars == 1) = 0;
+    %% final touc ups to the mask
 
-bridged(thinedTotalResult == 1) = 0;
-
-% GET STARS
-%ends = bwmorph(~bridged, 'endpoints');
-
-neighborhoodKernel = ones(3, 3); 
-neighborhoodKernel(2, 2) = 0;
-neighborCount = conv2(~bridged, neighborhoodKernel, 'same');
-
-dots = (~bridged == 1) & (neighborCount <= 1);
-
-
-
-%dots = filter_large_areas(ends, 1);
-
-starLength = 9;
-horizontal =    center_in_matrix(getnhood(strel("line",starLength,0)), starLength);
-vertical =      center_in_matrix(getnhood(strel("line",starLength,90)), starLength);
-leftleaning =   center_in_matrix(getnhood(strel("line",starLength * sqrt(2),45)), starLength);
-rightleaning =  center_in_matrix(getnhood(strel("line",starLength * sqrt(2),-45)), starLength);
-
-star = horizontal | vertical | leftleaning | rightleaning;
-stars = imdilate(dots, star);
-
-smallStars = filter_large_areas(stars, 200);
-%
-addedStars = bridged;
-
-addedStars(smallStars == 1) = 0;
-
-openUp = imopen(addedStars, [1 1; 1 1]);
-
-%filteredBridged = filter_large_areas(openUp, 40000);
-
-
-% openUp = imerode(bridged, strel("line", 10, 90));
-% 
-% filteredBridged = filter_large_areas(openUp, 30000);
-% 
-% 
-% erodedEnds = imerode(ends, [1 1 1; 1 0 1; 1 1 1]);
-
-closed = imclose(openUp, strel("disk", 3));
-
-filled = imfill(closed, 'holes');
-
-%eroded = imerode(filled, [1 1 1 1 1 1; 1 1 1 1 1 1]);
-
-hBriged = bwmorph(filled, 'hbreak');
-finalMask = bwareaopen(hBriged, 3000, 4);
-
-% imtool(finalMask)
-
-% imdilate(validNewPointsBinaryMask, [1 1; 1 1])
-
-% se = strel('square', 3); % Create a structuring element (3x3 square)
-% erodedMask = imerode(validNewPointsBinaryMask, se); % Erode the binary mask
-% hollowValidNewPointsBinaryMask = validNewPointsBinaryMask & ~erodedMask;
-
-% % Step 1: Skeletonize the binary image
-%     skeleton = bwmorph(hollowValidNewPointsBinaryMask, 'skel', Inf);
-% 
-%     % Step 2: Detect endpoints
-%     endpoints = bwmorph(skeleton, 'endpoints');
-% 
-% 
-%     % Get coordinates of the endpoints
-%     [end_y, end_x] = find(endpoints);
-% 
-%     % Step 3: Connect spikes
-%     % Create a copy of the skeleton for modifications
-%     connectedSkeleton = connect_all_points(skeleton, end_x, end_y);
-
-% 
-% imtool(connectedSkeleton)
-    % 
-    % % 
-    % % % %create new mask for this frame   
-    % SobelMask       = edge(thisFrame, 'Sobel');
-    % PrewittMask     = edge(thisFrame, 'Prewitt');
-    % RobertsMask     = edge(thisFrame, 'Roberts');
-    % LoGMask         = edge(thisFrame, 'log');
-    % ZeroCrossMask   = edge(thisFrame, 'zerocross');
-    % CannyMask       = edge(thisFrame, 'Canny', [], 4);
-    % ApproxCannyMask = edge(thisFrame, 'approxcanny');
-    % % % 
-    % total = SobelMask | PrewittMask | RobertsMask | LoGMask | ZeroCrossMask | CannyMask | ApproxCannyMask | hollowValidNewPointsBinaryMask;
-    % % 
-    %total = bwareaopen(total, 200, 4);
-    % % 
-    % % imtool(total)
-    % 
-    % %total = imclearborder(total, 8);
-    % 
-    % % % Step 1: Skeletonize the binary image
-    % % skeleton = bwmorph(total, 'skel', Inf);
-    % % 
-    % % % Step 2: Detect endpoints
-    % % endpoints = bwmorph(skeleton, 'endpoints');
-    % % 
-    % % 
-    % % % Get coordinates of the endpoints
-    % % [end_y, end_x] = find(endpoints);
-    % % 
-    % % % Step 3: Connect spikes
-    % % % Create a copy of the skeleton for modifications
-    % % connectedSkeleton = connect_all_points(skeleton, end_x, end_y);
-    % % 
-    % % dilated = imdilate(connectedSkeleton, [1 1; 1 1]);
-    % % total = bwareaopen(~dilated, 50000, 4);
-    % % invertedMask = dilated | total;
-    % % mask = ~invertedMask;
-    % 
-    % % Step 1: Label the connected components in the mask
-    % 
-    % 
-    % % Step 2: Measure the properties of connected components
-    % stats = regionprops(labeledMask, 'Area', 'PixelIdxList');
-    % 
-    % % Step 3: Filter areas based on size
-    % smallAreas = find([stats.Area] < 15000000);
-    % 
-    % % Step 4: Create a new mask with only small areas
-    % smallAreaMask = ismember(labeledMask, smallAreas);
-    % 
-
+    %open up the lines, get's rid of stray lines on the other edge.
+    openUp = imopen(addedStars, [1 1; 1 1]);
+    
+    %close up to fill in the whole a bit more
+    %closed = imclose(openUp, strel("disk", 3));
+    
     [labeledMask, numAreas] = bwlabel(openUp, 4);
-    
-    %coloredImage = label2rgb(labeledMask, 'jet', 'k', 'shuffle');
-    %imshow(coloredImage);
 
-    % Step 5: Identify areas that have points inside
-    filledValidPoinst = imfill(validNewPointsBinaryMask, 'holes');
-    %thinedValidPonits = bwmorph(validNewPointsBinaryMask, 'thin');
+
+    %% find the erea's with points in them 
+
+    % % used for debuggings, shows all area's in diffrent colors
+    %coloredImage = label2rgb(labeledMask, 'jet', 'k', 'shuffle'); 
+    %imshow(coloredImage); 
     
-    %get rid of lines
+    %filled masked with valid trecking points
+    filledValidPoinst = imfill(validNewPointsBinaryMask, 'holes'); % validNewPointsBinaryMask from line 153
+    
+    %get rid of stray lines
     openUpValidPonits = imopen(filledValidPoinst, [1 1; 1 1]);
 
     
-
-     [col, row] = find(openUpValidPonits);
-
-     eraPoints = [row, col];
+    %in the are finding the area's that have a tracking point in them and
+    %adding them to a final mask. These are's are all suppose to be part of
+    %the moving contraption
+    [col, row] = find(openUpValidPonits);
+    eraPoints = [row, col];
 
     validPointsIndices = sub2ind(size(thisFrame), round(eraPoints(:, 2)), round(eraPoints(:, 1))); % Convert points to linear indices
     areasWithPoints = unique(labeledMask(validPointsIndices)); % Get unique area labels with points
     
     areasWithPoints(areasWithPoints == 0) = [];
-
     finalMask = ismember(labeledMask, areasWithPoints);
-
-    % 
-    % % Step 6: Filter areas that are both small and contain points
-    % finalAreaLabels = intersect(smallAreas, areasWithPoints);
-    % 
-    % % Step 7: Create the final binary mask
-    % finalMask = ismember(labeledMask, finalAreaLabels);
-    % 
-    % %finalMask = imerode(finalMask, [1 1 1; 1 1 1]);
-    % 
-    % imshowpair(finalMask, thisFrame, 'diff');
-    % 
-    % % Step 8: Convert the binary mask into a list of points
-    % [row, col] = find(finalMask);
-    % pointsList = [col, row]; % Convert to [x, y] format if needed
-
-    %pointsList = groupPoints(pointsList, 5);
 
     [row, col] = find(finalMask);
     pointsList = [col, row];
 
-    combined = [validNewPoints; pointsList];
+    combined = [validNewPoints; pointsList]; %you keep the points you still have and add the new ones
 
-    %FILTER OUT BAD POINTS
+    %% FILTER OUT BAD POINTS
+    % get rid of points that are outside of the Area of Intrest
+
     combinedMask = false(size(thisFrame)); % Initialize a binary mask of the same size as the frame
-    % Convert [x, y] coordinates to row and column indices
-    rows = round(combined(:, 2)); % Y-coordinates (row indices)
-    cols = round(combined(:, 1)); % X-coordinates (column indices)
 
-    % Ensure indices are within bounds
-    validIndices = rows > 0 & rows <= size(combinedMask, 1) & cols > 0 & cols <= size(combinedMask, 2);
-    rows = rows(validIndices);
-    cols = cols(validIndices);
+    rows = round(combined(:, 2)); % Y-coordinates 
+    cols = round(combined(:, 1)); % X-coordinates 
 
     % Set the corresponding locations in the mask to true
     combinedMask(sub2ind(size(combinedMask), rows, cols)) = true;
 
-    %lastMask = bwareaopen(combinedMask, 3000, 4);
 
-    combinedMaskAndAreaOfIntrest = combinedMask & areaOfIntrest;
-
+    combinedMaskAndAreaOfIntrest = combinedMask & areaOfIntrest; % take only the parts insisde of the Area of Intrest
     filledUpCombo = imfill(combinedMaskAndAreaOfIntrest, 'holes');
 
     openComboMask = imopen(filledUpCombo, [1 1; 1 1]); %get rid of stray lines
     lastMask = imclose(openComboMask, [1 1; 1 1]); %fill up holes
 
-    currentArea = nnz(lastMask); % Count the number of non-zero (true) pixels
+    %%  thin final mask
+    % to prevent infinte growth, we thin the final mask until it's the same
+    % area as the original mask we found at the start
 
-    % Iteratively thin the combinedMask until its area is smaller than totalArea
+    currentArea = nnz(lastMask); % Count the number of non-zero (true) pixels
     while currentArea > totalArea
-        % Perform one iteration of thinning
         lastMask = bwmorph(lastMask, 'thin', 1);
     
-        % Update the current area
         currentArea = nnz(lastMask);
-    
-        % Optional: Display progress
-        fprintf('Current area: %d, Target area: %d\n', currentArea, totalArea);
+        %fprintf('Current area: %d, Target area: %d\n', currentArea, totalArea);
     end
 
-    %lastMask = bwmorph(lastMask, 'thin', 2);
-    
-    % openComboMask = imopen(filledUpCombo, [1 1; 1 1]);
-    % closedComboMask = imclose(openComboMask, [1 1; 1 1]);
 
-    
     % imtool(areaOfIntrest);
     % imtool(lastMask);
 
-
+    %% add new points to the tracker
+    
     [row, col] = find(lastMask);
     finalPoints = [col, row];
 
@@ -533,24 +415,18 @@ finalMask = bwareaopen(hBriged, 3000, 4);
     %plot(combined(:, 1), combined(:, 2), 'bx', 'MarkerSize', 1); % Blue 'x' markers for new points
     %hold off;
 
-
+    %% save to video
     thisFrameRGB = repmat(uint8(thisFrame), [1, 1, 3]); % Convert to RGB
     thisFrameRGB = insertMarker(thisFrameRGB, finalPoints, 'x', 'Color', 'red', 'Size', 1);
     %thisFrameRGB = insertMarker(thisFrameRGB, groupPoints(finalPoints, 300), 'x', 'Color', 'blue', 'Size', 5);
 
-
     writeVideo(outputVideo, thisFrameRGB);
-
-
-    % prevAreaOfIntrest = areaOfIntrest;
-
-
 end
 
-close(hWaitbar);
 
+close(hWaitbar); %doesn't seem to work for me but this is how you're suppose to do it.
 if isvalid(hWaitbar)
-    closeAllWaitbars();
+    closeAllWaitbars(); %selfmade function. Sometimes I keep having floating waitbars I can't get rid of by pressing the red X.
 end
 
 close(outputVideo);
