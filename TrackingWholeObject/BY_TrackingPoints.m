@@ -8,6 +8,7 @@ separatorIndex = find(projectRoot == filesep, 1, 'last');
 projectRoot = projectRoot(1:separatorIndex-1);
 
 load_video_chunks([6], true, projectRoot);
+addpath(projectRoot);
 frames = Video_6;
 
 %% start frame
@@ -140,9 +141,8 @@ for i = (startFrameIndex+1):(lastFrameIndex-1) %we use the previous and next fra
     PrewittMask     = edge(thisFrame, 'Prewitt');
     RobertsMask     = edge(thisFrame, 'Roberts');
     CannyMask       = edge(thisFrame, 'Canny', [], 4);
-    ApproxCannyMask = edge(thisFrame, 'approxcanny');
     % % 
-    total = SobelMask | PrewittMask | RobertsMask | CannyMask | ApproxCannyMask;
+    total = SobelMask | PrewittMask | RobertsMask | CannyMask;
 
     % can chose to add info of the neiboring frames as well. might help
     % close area's that didn't close because of bad edge detection
@@ -281,64 +281,64 @@ for i = (startFrameIndex+1):(lastFrameIndex-1) %we use the previous and next fra
     
     bridged(thinedTotalResult == 1) = 0;
 
-    %% STARS
-    %kinda similar idea as line 188
-    %I want to connect regions that didn't connect well because of bad edge
-    %dection. The idea here, we find these end point sof lines again. But this
-    %time, be just put a big star in there. The lines tend to be close to where
-    %they were suppose to end. So we hope they can connect to the other side of the line that the edge detection happened to miss.
-    
-    %this is the shape I mean with "star":
-    % 1     1     1
-    %   1   1   1  
-    %     1 1 1    
-    % 1 1 1 1 1 1 1
-    %     1 1 1    
-    %   1   1   1  
-    % 1     1     1
-    
-    %ends = bwmorph(~bridged, 'endpoints');
-    
-    % find the ends, looking for pixles with exalt 1 neigbor or less
-    neighborhoodKernel = ones(3, 3); 
-    neighborhoodKernel(2, 2) = 0;
-    neighborCount = conv2(~bridged, neighborhoodKernel, 'same');
-    dots = (~bridged == 1) & (neighborCount <= 1);
-    
-    %dots = filter_large_areas(ends, 1); % trying to get rid of area's if
-    %they are to close togater
-    
-    %making the star shape
-    starLength = 9;
-    horizontal =    center_in_matrix(getnhood(strel("line",starLength,0)), starLength);
-    vertical =      center_in_matrix(getnhood(strel("line",starLength,90)), starLength);
-    leftleaning =   center_in_matrix(getnhood(strel("line",starLength * sqrt(2),45)), starLength);
-    rightleaning =  center_in_matrix(getnhood(strel("line",starLength * sqrt(2),-45)), starLength);
-    
-    star = horizontal | vertical | leftleaning | rightleaning;
-    
-    % adding the stars
-    stars = imdilate(dots, star);
-    
-    %getting rid of to large areas
-    smallStars = filter_large_areas(stars, 200);
-    
-    %make a copy for easy debugging
-    addedStars = bridged;
-    
-    addedStars(smallStars == 1) = 0;
+    % %% STARS
+    % %kinda similar idea as line 188
+    % %I want to connect regions that didn't connect well because of bad edge
+    % %dection. The idea here, we find these end point sof lines again. But this
+    % %time, be just put a big star in there. The lines tend to be close to where
+    % %they were suppose to end. So we hope they can connect to the other side of the line that the edge detection happened to miss.
+    % 
+    % %this is the shape I mean with "star":
+    % % 1     1     1
+    % %   1   1   1  
+    % %     1 1 1    
+    % % 1 1 1 1 1 1 1
+    % %     1 1 1    
+    % %   1   1   1  
+    % % 1     1     1
+    % 
+    % %ends = bwmorph(~bridged, 'endpoints');
+    % 
+    % % find the ends, looking for pixles with exalt 1 neigbor or less
+    % neighborhoodKernel = ones(3, 3); 
+    % neighborhoodKernel(2, 2) = 0;
+    % neighborCount = conv2(~bridged, neighborhoodKernel, 'same');
+    % dots = (~bridged == 1) & (neighborCount <= 1);
+    % 
+    % %dots = filter_large_areas(ends, 1); % trying to get rid of area's if
+    % %they are to close togater
+    % 
+    % %making the star shape
+    % starLength = 9;
+    % horizontal =    center_in_matrix(getnhood(strel("line",starLength,0)), starLength);
+    % vertical =      center_in_matrix(getnhood(strel("line",starLength,90)), starLength);
+    % leftleaning =   center_in_matrix(getnhood(strel("line",starLength * sqrt(2),45)), starLength);
+    % rightleaning =  center_in_matrix(getnhood(strel("line",starLength * sqrt(2),-45)), starLength);
+    % 
+    % star = horizontal | vertical | leftleaning | rightleaning;
+    % 
+    % % adding the stars
+    % stars = imdilate(dots, star);
+    % 
+    % %getting rid of to large areas
+    % smallStars = filter_large_areas(stars, 200);
+    % 
+    % %make a copy for easy debugging
+    % addedStars = bridged;
+    % 
+    % addedStars(smallStars == 1) = 0;
     %% final touch ups to the mask
 
     %open up the lines, get's rid of stray lines on the other edge.
-    openUp = imopen(addedStars, [1 1; 1 1]);
+    openUp = imopen(bridged, [1 1; 1 1]);
     
     %close up to fill in the whole a bit more
     %closed = imclose(openUp, strel("disk", 3));
     
-    [labeledMask, numAreas] = bwlabel(openUp, 4);
 
 
     %% find the erea's with points in them 
+    [labeledMask, numAreas] = bwlabel(openUp, 4);
 
     % % used for debuggings, shows all area's in diffrent colors
     %coloredImage = label2rgb(labeledMask, 'jet', 'k', 'shuffle'); 
@@ -416,6 +416,7 @@ for i = (startFrameIndex+1):(lastFrameIndex-1) %we use the previous and next fra
     %hold off;
 
     %% save to video
+
     thisFrameRGB = repmat(uint8(thisFrame), [1, 1, 3]); % Convert to RGB
     thisFrameRGB = insertMarker(thisFrameRGB, finalPoints, 'x', 'Color', 'red', 'Size', 1);
     %thisFrameRGB = insertMarker(thisFrameRGB, groupPoints(finalPoints, 300), 'x', 'Color', 'blue', 'Size', 5);
