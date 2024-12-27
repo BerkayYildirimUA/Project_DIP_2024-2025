@@ -187,27 +187,27 @@ omega_diff = omega - omega3; % Difference in angular speeds
 % Visualization
 figure;
 
-% 1. Plot angular positions
+% Plot angular positions
 subplot(3, 1, 1);
 plot(timeVid, theta, 'b-', 'LineWidth', 1.5); hold on;
 plot(timeVid3, theta3, 'r--', 'LineWidth', 1.5);
-xlabel('Time (s)');
+xlabel('Time (ms)');
 ylabel('Angular Position (rad)');
 legend('\theta', '\theta_3');
 title('Angular Position Comparison');
 grid on;
 
-% 2. Plot angular speeds
+% Plot angular speeds
 subplot(3, 1, 2);
 plot(timeVid, omega, 'b-', 'LineWidth', 1.5); hold on;
 plot(timeVid3, omega3, 'r--', 'LineWidth', 1.5);
-xlabel('Time (s)');
-ylabel('Angular Speed (rad/s)');
+xlabel('Time (ms)');
+ylabel('Angular Speed (rad/ms)');
 legend('\omega_1', '\omega_2');
 title('Angular Speed Comparison');
 grid on;
 
-% 3. Plot difference in angular positions
+% Plot difference in angular positions
 subplot(3, 1, 3);
 plot(timeVid, theta_diff, 'k-', 'LineWidth', 1.5);
 xlabel('Time (s)');

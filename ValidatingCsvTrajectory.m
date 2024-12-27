@@ -1,4 +1,8 @@
 %% Reading and loading the video data
+% This code may be should be changed on the way you get the frames variable
+% The frames variable should have a format of Nx1726x2240 with N the amount
+% of frames in the video
+
 clear 
 close all 
 clc
@@ -26,83 +30,38 @@ frames = cat(1, frame0.video_data, frame1.video_data, frame2.video_data, ...
 % frame point accessed using png file
 frame_PointB = imread('frame_PointB.png');
 
-% Load video frames
-numFrames = size(frames, 1);   % Total number of frames
-frameRate = 380; % frame rate of the video
-
 % Define Point A as a constant (permanent position)
 pointA = [897.6928, 937.0970]; % Fixed coordinates of Point A
 
-% Display first frame to select initial Point B
-firstFrame = squeeze(frames(1, :, :)); % Extract first frame
-
-% Initialize point tracker
-tracker = vision.PointTracker('MaxBidirectionalError', 3);
-
 % Detect initial keypoints
-pointsB = detectHarrisFeatures(frame_PointB); % detects corners
-
-%points = detectSIFTFeatures(image_gray_edge);
-
-initialize(tracker, pointsB.Location, firstFrame);
-
-% Initialize arrays for storing tracked positions and angles
-trackedPointsB = zeros(numFrames, 2); % Frame, XY for Point B
-theta = zeros(numFrames, 1);
+pointB = detectHarrisFeatures(frame_PointB); % detects corners
 
 % First frame is shown with the reference and tracking point
+figure;
+firstFrame = squeeze(frames(1, :, :));
 imshow(firstFrame);
 hold on
 plot(pointA(1), pointA(2), "ro", "LineWidth", 3, 'DisplayName', 'Reference');
-plot(pointsB.Location(1), pointsB.Location(2), 'g.', 'LineWidth', 3, 'DisplayName', 'Tracking');
+plot(pointB.Location(1), pointB.Location(2), 'g.', 'LineWidth', 3, 'DisplayName', 'Tracking');
 legend show;
 hold off
-    
-% Initialize progress bar
-waitBar = waitbar(0, 'Processing frames...');
 
-% Process each frame and track Point B
-for i = 1:numFrames
-    currentFrame = squeeze(frames(i, :, :)); % Extract current frame
-
-    % Track Point B
-    [pointsB, validity] = tracker(currentFrame);
-
-    if validity
-        trackedPointsB(i, :) = pointsB; % Store Point B position
-
-        % Compute angle theta with Point A as origin
-        deltaX = pointsB(1) - pointA(1);
-        deltaY = pointsB(2) - pointA(2);
-
-        % Compute angle theta (in degrees) from the -y axis
-        % why does this work? 
-        theta(i) = 180 + atan2d(deltaX, -deltaY);
-    else
-        trackedPointsB(i, :) = [NaN, NaN]; % Handle invalid tracking
-        theta(i) = NaN;
-    end
-
-      % Update progress bar
-    waitbar(i / numFrames, waitBar, sprintf('Processing frame %d of %d...', i, numFrames));
-
-end
-
-% Close progress bar
-close(waitBar);
-
-% Release tracker
-release(tracker);
+% track the video
+[theta, trackedPoints] = track(frames, pointA, pointB.Location);
 
 %% Getting the angular speed and plotting the it and the theta values
 
+% Enter the framerate of the video
+fps = 380;
+
 % Generate time vector
-timeVid = (0:length(theta)-1) / 380 * 1000;
+timeVid = (0:length(theta)-1) / fps * 1000;
 
 % Compute angular speed (degrees per second)
 % Use finite difference method: diff(theta) / diff(time)
-angularSpeed = [0; diff(theta) * 380]; % Add 0 to align the array size
-% Multiplies by the values 380 to get similar values as in csv file
+omega = [0; diff(theta) * fps]; % Add 0 to align the array size
+
+% Multiplies by the fps to get similar values as in csv file
 % I do not know the correlation between this values the framerate of the
 % video, maybe just coincidence?
 
@@ -110,10 +69,11 @@ angularSpeed = [0; diff(theta) * 380]; % Add 0 to align the array size
 figure;
 imshow(squeeze(frames(end, :, :))); % Show the last frame
 hold on;
-plot(trackedPointsB(:, 1), trackedPointsB(:, 2), 'g-', 'LineWidth', 1.5); % Plot trajectory
-plot(pointA(1), pointA(2), 'bo', 'MarkerSize', 10, 'LineWidth', 2); % Mark Point A
+plot(trackedPoints(:, 1), trackedPoints(:, 2), 'g-', 'LineWidth', 1.5); % Plot trajectory
+plot(pointA(1), pointA(2), 'ro', 'MarkerSize', 10, 'LineWidth', 2); % Mark Point A
+plot(trackedPoints(end, 1), trackedPoints(end, 2), 'bo', 'MarkerSize', 10, 'LineWidth', 2)
 title('Trajectory of Point B');
-legend({'Trajectory', 'Point A'}, 'Location', 'Best');
+legend({'Trajectory', 'Point A', 'Point B'}, 'Location', 'Best');
 hold off;
 
 % Plot angle theta vs time
@@ -127,11 +87,12 @@ grid on;
 
 % Plot angular speed vs time
 subplot(2, 1, 2);
-plot(timeVid, angularSpeed, 'LineWidth', 2);
+plot(timeVid, omega, 'LineWidth', 2);
 xlabel('t (ms)');
 ylabel('Angular Speed (°/ms)');
 title('Angular Speed of Rod');
 grid on;
+
 
 %% Import data from text file
 % Script for importing data from the following text file:
@@ -202,8 +163,7 @@ xlabel('t [ms]');
 ylabel('n [°/ms]');
 grid on;
 
-%% Resampling the values from the csv file, synchronizing the two signal 
-%% and plotting them on a graph
+%% Resampling the values from the csv file, synchronizing the two signal and plotting them on a graph
 
 % Downsample the csv values with the ratio of 380/4000
 thetaCsvResam = resample(thetaCsv, 380, 4000);
@@ -216,7 +176,7 @@ shift = abs(maxIdxThetaResam - maxIdxTheta);
 
 % shift theta video value shift point to the right
 thetaShifted = [zeros(1, shift), theta(1:end-shift)']';  % Padding with zeros at the beginning
-angVeloShifted = [zeros(1, shift), angularSpeed(1:end-shift)']';
+angVeloShifted = [zeros(1, shift), omega(1:end-shift)']';
 
 % Plot the original and shifted signals
 figure;
