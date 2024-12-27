@@ -1,0 +1,24 @@
+// Logical Architecture Diagram for Mun Mission
+digraph {
+	Rocket [label="Rocket System" color=lightblue shape=box3d style=filled]
+	Propulsion [label="Propulsion Subsystem" color=lightyellow shape=box style=filled]
+	Guidance [label="Guidance and Control Subsystem" color=lightyellow shape=box style=filled]
+	Structure [label="Structural Subsystem" color=lightyellow shape=box style=filled]
+	Energy [label="Energy Subsystem" color=lightyellow shape=box style=filled]
+	Payload [label="Payload Subsystem" color=lightyellow shape=box style=filled]
+	Communication [label="Communication Subsystem" color=lightyellow shape=box style=filled]
+	MissionControl [label="Mission Control" color=lightgreen shape=ellipse style=filled]
+	KerbalCrew [label="Kerbal Crew" color=lightgreen shape=ellipse style=filled]
+	MissionControl -> Guidance
+	KerbalCrew -> Payload
+	Rocket -> Propulsion
+	Rocket -> Guidance
+	Rocket -> Structure
+	Rocket -> Energy
+	Rocket -> Payload
+	Rocket -> Communication
+	Propulsion -> Structure
+	Guidance -> Propulsion
+	Energy -> Guidance
+	Energy -> Communication
+}
